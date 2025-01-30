@@ -98,7 +98,7 @@ A Rust crate demonstrating compile-time theorem proving by mapping logical propo
   }
   ```
 
-### Theorems
+### Example Theorems
 - **Commutativity of Conjunction**:  
   Swaps the order of `And<A, B>`.  
   ```rust
@@ -110,6 +110,17 @@ A Rust crate demonstrating compile-time theorem proving by mapping logical propo
 - **Double Negation**:  
   Proves `P` is equivalent to `¬¬P`.  
   ```rust
+  pub fn double_negation_introduction<P: Prop>(p: P) -> Not<Not<P>> {
+      λ!(|np| np(p))
+  }
+
+  pub fn double_negation_elimination<P: Prop>(nnp: Not<Not<P>>) -> P {
+      match excluded_middle() {
+          Or::L(p) => p,
+          Or::R(np) => exfalso(nnp(np)),
+      }
+  }
+  
   pub fn double_negation<P: Prop>() -> Equal<P, Not<Not<P>>> {
       And(
           λ!(|p| double_negation_introduction(p)), // P → ¬¬P
@@ -121,6 +132,17 @@ A Rust crate demonstrating compile-time theorem proving by mapping logical propo
 - **Contraposition**:  
   Proves `P → Q` is equivalent to `¬Q → ¬P`.  
   ```rust
+  pub fn contraposition_forward<P: Prop, Q: Prop>(h: Imply<P, Q>) -> Imply<Not<Q>, Not<P>> {
+      λ!(|nq| λ!(|p| nq(h(p))))
+  }
+
+  pub fn contraposition_reverse<P: Prop, Q: Prop>(h: Imply<Not<Q>, Not<P>>) -> Imply<P, Q> {
+      λ!(|p| match excluded_middle() {
+          Or::L(q) => q,
+          Or::R(nq) => exfalso(h(nq)(p)),
+      })
+  }
+
   pub fn contraposition<P: Prop, Q: Prop>() -> Equal<Imply<P, Q>, Imply<Not<Q>, Not<P>>> {
       And(
           λ!(|h| contraposition_forward(h)), // Forward direction
@@ -131,25 +153,15 @@ A Rust crate demonstrating compile-time theorem proving by mapping logical propo
 
 ---
 
-## Examples
+## Compile-Time Proof Verification
+The program will not compile unless the implementation of a function correctly constructs the required proof. This is enforced by Rust's type system, which ensures that all propositions are valid and all proofs are sound. For example, constructing a proof of `And<A, B>` requires valid proofs of both `A` and `B`. If either proof is missing or incorrect, the program will fail to compile.
 
-### Proving Commutativity
-```rust
-use your_crate::{And, and_comm};
+### Restriction on Proposition Construction
+Propositions cannot be constructed "out of thin air." Instead, they must be generated from implications (functions) that take other propositions as input. This ensures that all proofs are derived from valid logical steps, not arbitrary assumptions. For example:
+- **Valid**: A proof of `And<A, B>` is constructed by providing proofs of `A` and `B`.
+- **Invalid**: Directly constructing a proposition like `True` or `False` without deriving it from other propositions is considered "cheating" and is disallowed.
 
-// Given a proof of `And<True, False>`, derive `And<False, True>`
-let proof: And<True, False> = And(True, False);
-let swapped = and_comm(proof); // Returns `And<False, True>`
-```
-
-### Material Implication
-```rust
-use your_crate::{material_implication, Or, Not};
-
-// Convert an implication `Imply<True, False>` to a disjunction `Or<Not<True>, False>`
-let imply: Imply<True, False> = Box::new(|_| unreachable!());
-let disjunction = material_implication(imply); // Returns `Or::L(Not<True>)`
-```
+Axioms, such as `excluded_middle`, are exceptions to this rule. They are foundational truths that do not require derivation but are used to bootstrap the proof system.
 
 ---
 
